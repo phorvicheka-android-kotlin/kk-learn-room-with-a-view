@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 /**
  * The Room Magic is in this file, where you map a method call to an SQL query.
@@ -16,9 +17,11 @@ import androidx.room.Query
 
 @Dao
 interface WordDao {
-    
+
+    // The flow always holds/caches latest version of data. Notifies its observers when the
+    // data has changed.
     @Query("SELECT * FROM word_table ORDER BY word ASC")
-    fun getAlphabetizedWords(): List<Word>
+    fun getAlphabetizedWords(): Flow<List<Word>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(word: Word)
