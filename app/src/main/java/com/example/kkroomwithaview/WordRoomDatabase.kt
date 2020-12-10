@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * This is the backend. The database. This used to be done by the OpenHelper.
@@ -21,7 +24,10 @@ public abstract class WordRoomDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: WordRoomDatabase? = null
 
-        fun getDatabase(context: Context): WordRoomDatabase {
+        fun getDatabase(
+            context: Context,
+            scope: CoroutineScope
+        ): WordRoomDatabase {
             // if the INSTANCE is not null, then return it,
             // if it is, then create the database
             return INSTANCE ?: synchronized(this) {
@@ -29,11 +35,50 @@ public abstract class WordRoomDatabase : RoomDatabase() {
                     context.applicationContext,
                     WordRoomDatabase::class.java,
                     "word_database"
-                ).build()
+                )
+                    // Wipes and rebuilds instead of migrating if no Migration object.
+                    // Migration is not part of this codelab.
+                    .fallbackToDestructiveMigration()
+                    .addCallback(WordDatabaseCallback(scope))
+                    .build()
                 INSTANCE = instance
                 // return instance
                 instance
             }
         }
+
+        private class WordDatabaseCallback(
+            private val scope: CoroutineScope
+        ) : RoomDatabase.Callback() {
+
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                super.onCreate(db)
+                // If you want to keep the data through app restarts,
+                // comment out the following line.
+                INSTANCE?.let { database ->
+                    scope.launch {
+                        populateDatabase(database.wordDao())
+                    }
+                }
+            }
+
+            /**
+             * Populate the database in a new coroutine.
+             * If you want to start with more words, just add them.
+             */
+            suspend fun populateDatabase(wordDao: WordDao) {
+                // Start the app with a clean database every time.
+                // Not needed if you only populate on creation.
+                // Delete all content here.
+                wordDao.deleteAll()
+
+                // Add sample words.
+                var word = Word("Hello")
+                wordDao.insert(word)
+                word = Word("World!")
+                wordDao.insert(word)
+            }
+        }
+
     }
 }
